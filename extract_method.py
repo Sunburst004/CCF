@@ -3,8 +3,10 @@ import jieba.posseg as pseg
 import jieba
 import re
 import csv
+import jieba.analyse
 
-jieba.load_userdict('./source/dictionary.txt')
+jieba.load_userdict(r'./source/dictionary.txt')
+jieba.analyse.set_stop_words(r'./source/stop_words.txt')
 
 
 class Ccf:
@@ -23,10 +25,10 @@ class Ccf:
         with open(r'.\Train_Data.csv', encoding='utf-8-sig') as f:
             file_content = pd.read_csv(f)
 
-        ids = file_content[:500]['id']
-        text = file_content[:500]['text']
-        title = file_content[:500]['title']
-        unknown_entities = file_content[:500]['unknownEntities']
+        ids = file_content[:2000]['id']
+        text = file_content[:2000]['text']
+        title = file_content[:2000]['title']
+        unknown_entities = file_content[:2000]['unknownEntities']
         content = []
 
         for i in range(len(ids)):
@@ -65,8 +67,8 @@ class Ccf:
         new_text = []
         sum_n_entity = []
         entity_list = []
-        flag = ['博览会','联盟','app', '公司', '有限公司', '集团', '中心', '之家','股权','理财','平台','场所','交易所','终端']
-        nn = ['n', 'nr', 'ns', 'nt', 'nz']
+        flag = ['平台','云','汇','博览会','联盟','app', '公司', '有限公司', '集团', '中心', '之家','股权','理财','平台','场所','交易所','终端']
+        nn = ['n', 'nr', 'ns', 'nt', 'nz','vn','eng']
         nn_entity = ['nr', 'nz', 'nt', 'ns', 'vn']
 
         content = self.wash_data()
@@ -78,12 +80,11 @@ class Ccf:
             middle0 = []
             chunk = pseg.cut(i[2])
             middle_entity = []
-            n_entity = []
-
-
-            # print(content.index(i))
-
+            new_sentence = ''
+            print(content.index(i))
             for j, k in chunk:
+                if k == 'j':
+                    k = 'n'
                 middle.append([j, k])
                 middle0.append([j, k])
             index = 0
@@ -91,15 +92,13 @@ class Ccf:
             for word in middle:
                 if word[0] in self.stop_list:
                     del middle[middle.index(word)]
-
-
-            for word in middle:
-                if word[1] == 'n':
-                    n_entity.append(word[0])
-
-            n_entity = list(set(n_entity))
-            sum_n_entity.append(n_entity)
-
+            keywords = jieba.analyse.extract_tags(i[2],topK=7,withWeight=True,allowPOS=('nz','nr','ns','nt','vn'))
+            for a in keywords:
+                if a[1] > 1:
+                    # middle_entity.append(a[0])
+                    # print(a)
+                    pass
+            # print('-------------------------------------------')
             #-------------------------------合并 s + NN --------------------------------------------
 
             index_sNN = 0
@@ -132,9 +131,9 @@ class Ccf:
 
             # ------------------------------添加词性为NN_entity的实体--------------------------------
 
-            for word in middle:
-                if word[1] in nn_entity and word[0]:
-                    middle_entity.append(word[0])
+            # for word in middle:
+            #     if word[1] in nn_entity and word[0]:
+            #         middle_entity.append(word[0])
 
             # --------------------------------------合并公司等实体----------------------------------------
 
@@ -170,27 +169,6 @@ class Ccf:
             for word in middle:
                 if word[0] in flag:
                     word[1] = 'n'
-            # ------------------------------------合并一次名词---------------------------------------------
-
-            index_n = 0
-            for a in range(len(middle)):
-                if a > 0:
-                    if a < len(middle) - 1:
-                        if middle[a][1] == 'n' and middle[a - 1][1] == 'n' and middle[a + 1][1] != 'n' :
-                            index_n = index_n + 1
-                            continue
-                    elif middle[a][1] == 'n' and middle[a - 1][1] == 'n' and a == len(middle):
-                        index_n = index_n + 1
-                        continue
-
-            for j in range(index_n):
-                for d in range(len(middle)):
-                    if d >= 1:
-                        if middle[d][1] == 'n' and middle[d - 1][1] == 'n':
-                            new_value = middle[d - 1][0] + middle[d][0]
-                            middle[d - 1] = [new_value, 'entity']
-                            del middle[d]
-                            break
 
             # -------------------------------------识别网站------------------------------------------------
 
@@ -210,51 +188,51 @@ class Ccf:
 
             #--------------------------------------合并 m + m ---------------------------------------------
 
-            index_mm = 0
-            for a in range(len(middle)):
-                if a > 0 :
-                    if middle[a][1] == 'm' and middle[a - 1][1] == 'm':
-                        index_mm += 1
-            for j in range(index_mm*2):
-                for a in range(len(middle)):
-                    if a > 0:
-                        if middle[a][1] == 'm' and middle[a-1][1] =='m':
-                            middle[a-1] = [middle[a-1][0]+middle[a][0],'m']
-                            del middle[a]
-                            if a < len(middle):
-                                if middle[a][1] != 'n':
-                                    middle_entity.append(middle[a-1][1])
-                            break
+            # index_mm = 0
+            # for a in range(len(middle)):
+            #     if a > 0 :
+            #         if middle[a][1] == 'm' and middle[a - 1][1] == 'm':
+            #             index_mm += 1
+            # for j in range(index_mm*2):
+            #     for a in range(len(middle)):
+            #         if a > 0:
+            #             if middle[a][1] == 'm' and middle[a-1][1] =='m':
+            #                 middle[a-1] = [middle[a-1][0]+middle[a][0],'m']
+            #                 del middle[a]
+            #                 if a < len(middle):
+            #                     if middle[a][1] != 'n':
+            #                         middle_entity.append(middle[a-1][1])
+            #                 break
 
             #--------------------------------------合并 m + n ---------------------------------------------
-            index_mn = 0
-            for a in range(len(middle)):
-                if a > 0 :
-                    if middle[a][1] == 'n' and middle[a - 1][1] == 'm':
-                        index_mn += 1
-            for j in range(index_mn*2):
-                for a in range(len(middle)):
-                    if a > 0:
-                        if middle[a][1] == 'n' and middle[a-1][1] =='m':
-                            middle[a-1] = [middle[a-1][0]+middle[a][0],'entity']
-                            del middle[a]
-                            break
+            # index_mn = 0
+            # for a in range(len(middle)):
+            #     if a > 0 :
+            #         if middle[a][1] == 'n' and middle[a - 1][1] == 'm':
+            #             index_mn += 1
+            # for j in range(index_mn*2):
+            #     for a in range(len(middle)):
+            #         if a > 0:
+            #             if middle[a][1] == 'n' and middle[a-1][1] =='m':
+            #                 middle[a-1] = [middle[a-1][0]+middle[a][0],'entity']
+            #                 del middle[a]
+            #                 break
 
             #----------------------------------------- s + entity --------------------------------------
 
-            index_sentity = 0
-            for a in range(len(middle)):
-                if a > 0:
-                    if middle[a][1] == 'entity' and middle[a - 1][1] == 's':
-                        index_sentity += 1
-
-            for j in range(index_sentity * 2):
-                for a in range(len(middle)):
-                    if a > 0:
-                        if middle[a][1] == 'entity' and middle[a - 1][1] == 's':
-                            middle[a - 1] = [middle[a - 1][0] + middle[a][0], 'entity']
-                            del middle[a]
-                            break
+            # index_sentity = 0
+            # for a in range(len(middle)):
+            #     if a > 0:
+            #         if middle[a][1] == 'entity' and middle[a - 1][1] == 's':
+            #             index_sentity += 1
+            #
+            # for j in range(index_sentity * 2):
+            #     for a in range(len(middle)):
+            #         if a > 0:
+            #             if middle[a][1] == 'entity' and middle[a - 1][1] == 's':
+            #                 middle[a - 1] = [middle[a - 1][0] + middle[a][0], 'entity']
+            #                 del middle[a]
+            #                 break
 
             # -------------------------------------添加实体------------------------------------------------
 
@@ -270,9 +248,10 @@ class Ccf:
             entity_list.append([i[0], ';'.join(total_entity)])
 
         for i in range(len(content)):
-            print(new_text[i])
+            # print(new_text[i])
             print(entity_list[i])
             # print(content[i])
+            pass
 
         return entity_list
 
