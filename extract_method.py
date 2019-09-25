@@ -7,6 +7,7 @@ import jieba.analyse
 
 jieba.load_userdict(r'./source/dictionary.txt')
 jieba.analyse.set_stop_words(r'./source/stop_words.txt')
+jieba.load_userdict(r'./source/entity.txt')
 
 
 class Ccf:
@@ -22,17 +23,17 @@ class Ccf:
         :return:
         """
 
-        with open(r'.\Train_Data.csv', encoding='utf-8-sig') as f:
+        with open(r'.\Test_Data.csv', encoding='utf-8-sig') as f:
             file_content = pd.read_csv(f)
 
-        ids = file_content[:2000]['id']
-        text = file_content[:2000]['text']
-        title = file_content[:2000]['title']
-        unknown_entities = file_content[:2000]['unknownEntities']
+        ids = file_content[:4998]['id']
+        text = file_content[:4998]['text']
+        title = file_content[:4998]['title']
+        # unknown_entities = file_content[:500]['unknownEntities']
         content = []
 
         for i in range(len(ids)):
-            content.append([ids[i], title[i], text[i], unknown_entities[i]])
+            content.append([ids[i], title[i], text[i]])  # unknown_entities[i]])
         return content
 
     def get_stop_word(self):
@@ -49,7 +50,6 @@ class Ccf:
         for i in content:
 
             for re_c in replace_character:
-
                 i[2] = str(i[2]).replace(re_c, '')
 
             for x in range(20):
@@ -64,12 +64,20 @@ class Ccf:
 
         self.get_stop_word()
 
+        all_num = 0
         new_text = []
         sum_n_entity = []
         entity_list = []
-        flag = ['平台','云','汇','博览会','联盟','app', '公司', '有限公司', '集团', '中心', '之家','股权','理财','平台','场所','交易所','终端']
-        nn = ['n', 'nr', 'ns', 'nt', 'nz','vn','eng']
+        flag = ['饭店', '酒店', '万汇城', '商城', '易投', '银行', '微交易', '钱包', '事务所', '诈骗平台', '影视', '网', '无货源', '货源', '跑分', '链',
+                '推手', '财富牛', '财富', '币', '云',
+                '汇', '博览会', '联盟', 'app', '公司', '有限公司', '集团', '中心', '之家', '股权', '理财', '平台', '场所', '交易所', '终端']
+        nn = ['n', 'nr', 'ns', 'nt', 'nz', 'vn', 'eng']
         nn_entity = ['nr', 'nz', 'nt', 'ns', 'vn']
+        throw_entity = ['吕家传','时空周转','贷款平台','任务平台','iac','5050','微信平台','曝光平台','干货','禁言平台',
+                        '创始人出售币','gt理财','MG','健康行业','湖南平台','资讯平台','单线平台','借款公司','势力平台',
+                        '代表公司','商业平台','中国首家','外汇外汇投资','手机app','金融理财','亚太','研究中心','ling',
+                        '元素','风雨无忧','创业平台','实际公司','nan','品牌酒店','pbc','项目公司','个别平台','ing',
+                        '骗子公司','投资理财','外汇平台','经公司','投资有限公司']
 
         content = self.wash_data()
 
@@ -80,7 +88,6 @@ class Ccf:
             middle0 = []
             chunk = pseg.cut(i[2])
             middle_entity = []
-            new_sentence = ''
             print(content.index(i))
             for j, k in chunk:
                 if k == 'j':
@@ -92,14 +99,15 @@ class Ccf:
             for word in middle:
                 if word[0] in self.stop_list:
                     del middle[middle.index(word)]
-            keywords = jieba.analyse.extract_tags(i[2],topK=7,withWeight=True,allowPOS=('nz','nr','ns','nt','vn'))
-            for a in keywords:
-                if a[1] > 1:
-                    # middle_entity.append(a[0])
-                    # print(a)
-                    pass
+            keywords = jieba.analyse.extract_tags(i[2], topK=7, withWeight=True,
+                                                  allowPOS=('nz', 'nr', 'ns', 'nt', 'vn'))
+            # for a in keywords:
+            #     if a[1] > 1:
+            #         middle_entity.append(a[0])
+            #         print(a)
+                    # pass
             # print('-------------------------------------------')
-            #-------------------------------合并 s + NN --------------------------------------------
+            # -------------------------------合并 s + NN --------------------------------------------
 
             index_sNN = 0
             for a in range(len(middle)):
@@ -135,58 +143,58 @@ class Ccf:
             #     if word[1] in nn_entity and word[0]:
             #         middle_entity.append(word[0])
 
-            # --------------------------------------合并公司等实体----------------------------------------
+            #--------------------------------------合并公司等实体----------------------------------------
+            if content.index(i) != 3951:
+                for a in range(len(middle)):
+                    if middle[a][0] in flag:
+                        middle[a][1] = 'entity'
+                        before_num.append(a)
+                        for b in range(6):
+                            if middle[a - b - 1][1] in nn and a >= 1 + b:
+                                index = index + 1
 
-            for a in range(len(middle)):
-                if middle[a][0] in flag:
-                    middle[a][1] = 'entity'
-                    before_num.append(a)
-                    for b in range(6):
-                        if middle[a - b - 1][1] in nn and a >= 1 + b:
-                            index = index + 1
-
-            for a in range(index):
-                for b in range(len(middle)):
-                    if middle[b][1] == 'entity':
-                        if middle[b - 1][1] in nn and b >= 1:
-                            a = middle[b - 1][0] + middle[b][0]
-                            middle[b - 1] = [a, 'entity']
-                            del middle[b]
-                            break
+                for a in range(index):
+                    for b in range(len(middle)):
+                        if middle[b][1] == 'entity':
+                            if middle[b - 1][1] in nn and b >= 1:
+                                a = middle[b - 1][0] + middle[b][0]
+                                middle[b - 1] = [a, 'entity']
+                                del middle[b]
+                                break
 
             # ----------------------------------------------将flag里未处理的词性还原------------------------
 
-            for a in range(len(middle)):
-                if middle[a][0] in flag:
-                    middle[a][1] = 'entity'
-                    after_num.append(a)
+                for a in range(len(middle)):
+                        if middle[a][0] in flag:
+                            middle[a][1] = 'entity'
+                            after_num.append(a)
 
-            lentha = len(after_num)
-            for a in range(lentha):
-                if middle0[before_num[a]][0] == middle[after_num[a]][0]:
-                    middle[after_num[a]][1] = 'n'
+                lentha = len(after_num)
+                for a in range(lentha):
+                    if middle0[before_num[a]][0] == middle[after_num[a]][0]:
+                        middle[after_num[a]][1] = 'n'
 
-            for word in middle:
-                if word[0] in flag:
-                    word[1] = 'n'
+                for word in middle:
+                    if word[0] in flag:
+                        word[1] = 'n'
 
             # -------------------------------------识别网站------------------------------------------------
+            #
+            # tp_tr = re.compile(r'[http|https]+://\w+\.\w+\.\w+/[a-zA-Z0-9]+/[a-zA-Z0-9]+', re.S).findall(
+            #     i[2])  # 两个点的两个反斜杆
+            #
+            # tp_or = []
+            # if not tp_tr:
+            #     tp_or = re.compile(r'[http|https]+://\w+\.\w+\.\w+/[a-zA-Z0-9]+', re.S).findall(i[2])  # 两个点的一个反斜杆
+            # op_tr = re.compile(r'[http|https]+://\w+\.\w+/[a-zA-Z0-9]+/[a-zA-Z0-9]+', re.S).findall(i[2])  # 一个点的两个反斜杠
+            #
+            # op_or = []
+            # if not op_tr:
+            #     op_or = re.compile(r'[http|https]+://\w+\.\w+/[a-zA-Z0-9]+', re.S).findall(i[2])  # 一个点的一个反斜杠
+            # book_name = list(set(re.compile(r'《\w+》', re.S).findall(i[2])))
+            # result_pre = re.compile(r"[\d|\d.\d]+\b%", re.S).findall(i[2])
 
-            tp_tr = re.compile(r'[http|https]+://\w+\.\w+\.\w+/[a-zA-Z0-9]+/[a-zA-Z0-9]+', re.S).findall(
-                i[2])  # 两个点的两个反斜杆
-
-            tp_or = []
-            if not tp_tr:
-                tp_or = re.compile(r'[http|https]+://\w+\.\w+\.\w+/[a-zA-Z0-9]+', re.S).findall(i[2])  # 两个点的一个反斜杆
-            op_tr = re.compile(r'[http|https]+://\w+\.\w+/[a-zA-Z0-9]+/[a-zA-Z0-9]+', re.S).findall(i[2])  # 一个点的两个反斜杠
-
-            op_or = []
-            if not op_tr:
-                op_or = re.compile(r'[http|https]+://\w+\.\w+/[a-zA-Z0-9]+', re.S).findall(i[2])  # 一个点的一个反斜杠
-            book_name = list(set(re.compile(r'《\w+》', re.S).findall(i[2])))
-            result_pre = re.compile(r"[\d|\d.\d]+\b%", re.S).findall(i[2])
-
-            #--------------------------------------合并 m + m ---------------------------------------------
+            # --------------------------------------合并 m + m ---------------------------------------------
 
             # index_mm = 0
             # for a in range(len(middle)):
@@ -204,7 +212,7 @@ class Ccf:
             #                         middle_entity.append(middle[a-1][1])
             #                 break
 
-            #--------------------------------------合并 m + n ---------------------------------------------
+            # --------------------------------------合并 m + n ---------------------------------------------
             # index_mn = 0
             # for a in range(len(middle)):
             #     if a > 0 :
@@ -218,7 +226,7 @@ class Ccf:
             #                 del middle[a]
             #                 break
 
-            #----------------------------------------- s + entity --------------------------------------
+            # ----------------------------------------- s + entity --------------------------------------
 
             # index_sentity = 0
             # for a in range(len(middle)):
@@ -237,21 +245,18 @@ class Ccf:
             # -------------------------------------添加实体------------------------------------------------
 
             for word in middle:
-                if word[1] == 'entity':
+                if word[1] == 'entity' and word[0] not in throw_entity:
                     middle_entity.append(word[0])
 
             # ------------------------------------去重----------------------------------------------------
 
             middle_entity = list(set(middle_entity))
 
-            total_entity = middle_entity + tp_tr + tp_or + op_tr + op_or + book_name + result_pre
+            total_entity = middle_entity
             entity_list.append([i[0], ';'.join(total_entity)])
-
-        for i in range(len(content)):
-            # print(new_text[i])
+        for i in range(len(content) - 1):
+        #     if len(entity_list[i]) == 2 and entity_list[i][1] == '':
             print(entity_list[i])
-            # print(content[i])
-            pass
 
         return entity_list
 
